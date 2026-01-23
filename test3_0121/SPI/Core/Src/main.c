@@ -28,6 +28,7 @@
 #include "lcd_init.h"
 #include "lcd.h"
 #include "pic.h"
+#include<math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,7 +43,31 @@
 #define RADIUS 100         
 #define SECOND_HAND_LEN 60 // 
 #define MINUTE_HAND_LEN 40  
-#define HOUR_HAND_LEN 20    
+#define HOUR_HAND_LEN 20
+#define       SEG_A      (1<<0)
+#define       SEG_B      (1<<1)
+#define       SEG_C      (1<<2)
+#define       SEG_D      (1<<3)
+#define       SEG_E      (1<<4)
+#define       SEG_F      (1<<5)
+#define       SEG_G      (1<<6)
+#define       SEG_DP     (1<<7)
+#define       DIG_0      (SEG_A+SEG_B+SEG_C+SEG_D+SEG_E+SEG_F)
+#define       DIG_1      (SEG_B+SEG_C)
+#define       DIG_2      (SEG_A+SEG_B+SEG_D+SEG_E+SEG_G)
+#define      	DIG_3      (SEG_A+SEG_B+SEG_C+SEG_D+SEG_G)
+#define       DIG_4      (SEG_B+SEG_C+SEG_F+SEG_G)
+#define       DIG_5      (SEG_A+SEG_F+SEG_G+SEG_C+SEG_D)
+#define       DIG_6      (SEG_A+SEG_C+SEG_D+SEG_E+SEG_F+SEG_G)
+#define       DIG_7      (SEG_A+SEG_B+SEG_C)
+#define       DIG_8   	 (SEG_A+SEG_B+SEG_C+SEG_D+SEG_E+SEG_F+SEG_G)
+#define       DIG_9      (SEG_A+SEG_B+SEG_C+SEG_D+SEG_F+SEG_G)
+#define       DIG_A      (SEG_A+SEG_B+SEG_C+SEG_E+SEG_F+SEG_G)
+#define       DIG_b      (SEG_C+SEG_D+SEG_E+SEG_F+SEG_G)
+#define       DIG_C      (SEG_A+SEG_D+SEG_E+SEG_F)
+#define       DIG_d      (SEG_B+SEG_C+SEG_D+SEG_E+SEG_G)
+#define       DIG_E      (SEG_A+SEG_D+SEG_E+SEG_F+SEG_G)
+#define       DIG_15     (SEG_A+SEG_E+SEG_F+SEG_G)//F
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,7 +76,10 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
+char Table[16] = { DIG_0,DIG_1,DIG_2,DIG_3,DIG_4,DIG_5,DIG_6,DIG_7,
+                                     DIG_8,DIG_9,DIG_A,DIG_b,DIG_C,DIG_d,DIG_E,DIG_15
+                                    };
+char buf[8];
 /* USER CODE BEGIN PV */
 extern int s;
 extern int m;
@@ -127,6 +155,24 @@ void DrawHands(uint8_t old_h, uint8_t old_m, uint8_t old_s, uint8_t new_h, uint8
                  CENTER_Y - HOUR_HAND_LEN * cos(hour_angle_new), WHITE);     
 }
 
+void RemoveHands(uint8_t old_h, uint8_t old_m, uint8_t old_s) {
+
+    float second_angle_old = old_s * 6 * 3.14159 / 180; 
+    float minute_angle_old = (old_m + old_s / 60.0) * 6 * 3.14159 / 180; 
+    float hour_angle_old = (old_h % 12 + old_m / 60.0) * 30 * 3.14159 / 180; 
+
+    LCD_DrawLine(CENTER_X, CENTER_Y, 
+                 CENTER_X + SECOND_HAND_LEN * sin(second_angle_old),
+                 CENTER_Y - SECOND_HAND_LEN * cos(second_angle_old),BLUE );
+    LCD_DrawLine(CENTER_X, CENTER_Y, 
+                 CENTER_X + MINUTE_HAND_LEN * sin(minute_angle_old),
+                 CENTER_Y - MINUTE_HAND_LEN * cos(minute_angle_old),BLUE );
+    LCD_DrawLine(CENTER_X, CENTER_Y, 
+                 CENTER_X + HOUR_HAND_LEN * sin(hour_angle_old),
+                 CENTER_Y - HOUR_HAND_LEN * cos(hour_angle_old),BLUE );
+
+}
+
 void Drawnum(void){
     for (int i = 1; i <= 12; i++) {
         float angle = i * 30 * 3.14159 / 180; 
@@ -135,7 +181,72 @@ void Drawnum(void){
         LCD_ShowIntNum(x_start,y_start,i,i/10+1,WHITE,BLUE,12);
 		}
 }
-
+void DispNum(int data)
+{
+        int i = 0;
+        
+      if( data == 0 )
+        {
+                buf[7] = Table[0];    
+              for( i = 6; i >= 0; i-- )
+                {
+                      buf[i] = 0;
+                }
+                return;
+        }
+        
+        for( i = 7; i >= 0; i-- )
+        {
+                if(data == 0)
+                {
+                        buf[i] = 0;
+                }
+                else
+                {
+                        buf[i] = Table[data%10];
+                        data /= 10;
+                }
+        }
+        
+        return;
+}
+int Key(int num)
+{
+    static int state[4] = {0};
+    int result = 0;
+    
+    switch(state[num])
+    {
+        case 0:
+            if( (GPIOB->IDR & (1 << (num+12))) == 0 )
+            {
+                    state[num] = 1;
+            }
+            break;
+        case 1:
+            if( (GPIOB->IDR & (1 << (num+12))) == (1 << (num+12)))
+            {
+                    state[num] = 0;
+            }
+            else
+            {
+                    state[num] = 2;
+                  result = 1;
+            }
+            break;
+        case 2:
+            if( (GPIOB->IDR & (1 << (num+12))) == (1 << (num+12)))
+            {
+                    state[num] = 0;
+            }
+            else
+            {
+            }
+            break;
+    }
+    
+    return result;
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -184,6 +295,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	GPIOC->ODR |= (1 << 3);
+	int pos=0;
+	int A=s%10+(s/10)*10+(m%10)*100+(m/10)*1000+(h%10)*10000+(h/10)*100000;
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -191,11 +306,43 @@ int main(void)
     /* USER CODE BEGIN 3 */
 		//LCD_ShowPicture(50,50,150,79,gImage_1);
 		//LCD_ShowPicture(50,129,150,79,gImage_1);
-		if(Flag1sok==1){
-			DrawHands(old_h,old_m,old_s,h,m,s);
-			Flag1sok=0;
+		if(Flag2msok == 1){
 
+			 if(Key(0)==1)
+				   RemoveHands(h,m,s++);
+			 if(Key(1)==1){
+					 RemoveHands(h,m,s);
+					 s+=10;
+			 }		 
+			 if(Key(2)==1){
+					 RemoveHands(h,m++,s);
+			 }					
+			 if(Key(3)==1){
+					 RemoveHands(h,m,s);
+					 m+=10;
+			 }					 
+			 A=s%10+(s/10)*10+(m%10)*100+(m/10)*1000+(h%10)*10000+(h/10)*100000;
+			 DispNum(A);
+			 Flag2msok = 0;		
+			 GPIOB->ODR &= (~255); //&=0b00000000 
+			 GPIOB->ODR |= buf[pos];
+			 
+			 GPIOC->ODR &= (~7);//&=0b00001000
+			 GPIOC->ODR |= pos;
+			
+			 pos++;
+			 if(pos >= 8)
+			 {
+						pos = 0;
+			 }
 		}
+		
+		if(Flag1sok==1){
+			 DrawHands(old_h,old_m,old_s,h,m,s);
+			 A=s%10+(s/10)*10+(m%10)*100+(m/10)*1000+(h%10)*10000+(h/10)*100000;
+			 Flag1sok=0;
+		}
+
 
 	}
   /* USER CODE END 3 */

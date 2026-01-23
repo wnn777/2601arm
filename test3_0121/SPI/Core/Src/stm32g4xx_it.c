@@ -42,10 +42,10 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 int s=50;
-int m=0;
-int h=4;
-int old_h=4;
-int old_m=0;
+int m=35;
+int h=10;
+int old_h=10;
+int old_m=35;
 int old_s=50;
 int counter=0;
 int counter1=0;
@@ -196,6 +196,11 @@ void SysTick_Handler(void)
 	counter++;
 	counter1++;
 
+	if(counter1>=1){
+		counter1=0;
+		Flag2msok=1;
+	}	
+	
 	if(counter>=1000){
 		Flag1sok=1;
 		counter=0;
